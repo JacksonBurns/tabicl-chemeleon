@@ -1,6 +1,6 @@
 
 wget --no-clobber https://huggingface.co/jingang/TabICL/resolve/main/tabicl-classifier-v2-20260212.ckpt
-wget --no--clobber https://huggingface.co/jingang/TabICL/resolve/main/tabicl-regressor-v2-20260212.ckpt
+wget --no-clobber https://huggingface.co/jingang/TabICL/resolve/main/tabicl-regressor-v2-20260212.ckpt
 
 torchrun --standalone --nproc_per_node=1 -m tabicl.train \
     --device cuda \
