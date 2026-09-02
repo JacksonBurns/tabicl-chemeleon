@@ -102,7 +102,7 @@ class CheMeleonEmbedder:
         self.rng = np.random.default_rng(seed=random_seed)
 
     def __call__(self, batch_size: int) -> torch.Tensor:
-        bmg = [_move_graph_to(mg, self.device) for mg in self.featurizer(self.smiles[torch.randperm(self.rng.choice(len(self.smiles), size=batch_size, replace=False))])]
+        bmg = [_move_graph_to(mg, self.device) for mg in self.featurizer(self.smiles[self.rng.choice(len(self.smiles), size=batch_size, replace=False)])]
         with torch.no_grad():
             return self.model.fingerprint(bmg)
 
