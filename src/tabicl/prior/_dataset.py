@@ -1322,6 +1322,46 @@ class DummyPrior(Prior):
 
         return X, y, d, seq_lens, train_sizes
 
+class ChemeleonPrior(SCMPrior):
+    """
+    SCM prior using fixed CheMeleon embeddings as input features.
+
+    The CheMeleon embeddings provide X, while the existing MLPSCM
+    task generator produces a synthetic regression target y from X.
+    """
+
+    @torch.no_grad()
+    def generate_dataset(self, params):
+        seq_len = params["seq_len"]
+
+        X = torch.as_tensor(
+            get_chemeleon_embeddings(seq_len),
+            dtype=torch.float32,
+            device=self.device,
+        )
+
+        if X.shape != (seq_len, 2048):
+            raise ValueError(
+                f"Expected CheMeleon embeddings of shape "
+                f"({seq_len}, 2048), got {tuple(X.shape)}"
+            )
+
+        # Generate a hypothetical regression task using the existing
+        # TabICL MLP-SCM machinery, with CheMeleon X as the causes.
+        prior = MLPSCM(
+            **params,
+            is_causal=False,
+        )
+
+        _, y = prior(X)
+
+        d = torch.tensor(
+            2048,
+            dtype=torch.long,
+            device=self.device,
+        )
+
+        return X, y, d
 
 class PriorDataset(IterableDataset):
     """
@@ -1443,6 +1483,31 @@ class PriorDataset(IterableDataset):
                 min_train_size=min_train_size,
                 max_train_size=max_train_size,
                 device=device,
+            )
+        elif prior_type == "chemeleon":
+            self.prior = ChemeleonPrior(
+                regression=regression,
+                batch_size=batch_size,
+                batch_size_per_gp=batch_size_per_gp,
+                batch_size_per_subgp=batch_size_per_subgp,
+                min_features=min_features,
+                max_features=max_features,
+                max_classes=max_classes,
+                min_seq_len=min_seq_len,
+                max_seq_len=max_seq_len,
+                log_seq_len=log_seq_len,
+                log_n_features=log_n_features,
+                seq_len_per_gp=seq_len_per_gp,
+                min_train_size=min_train_size,
+                max_train_size=max_train_size,
+                replay_small=replay_small,
+                prior_type="mlp_scm",
+                fixed_hp=scm_fixed_hp,
+                sampled_hp=scm_sampled_hp,
+                n_jobs=n_jobs,
+                num_threads_per_generate=num_threads_per_generate,
+                device=device,
+                config=config,
             )
         elif prior_type in ["mlp_scm", "tree_scm", "mix_scm"]:
             self.prior = SCMPrior(

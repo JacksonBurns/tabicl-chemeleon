@@ -21,7 +21,7 @@ torchrun --standalone --nproc_per_node=1 -m tabicl.train \
     --regression_method quantile \
     --num_quantiles 999 \
     --prior_type chemeleon \
-    --prior_device cpu \
+    --prior_device cuda \
     --n_jobs 16 \
     --batch_size_per_gp 1 \
     --min_features 2048 \
