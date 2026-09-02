@@ -242,9 +242,13 @@ class MLPSCM(nn.Module):
             nn.init.normal_(param, std=std)
             param *= torch.bernoulli(torch.full_like(param, 1 - dropout_prob))
 
-    def forward(self):
-        """Generates synthetic data by sampling input features and applying MLP transformations."""
-        causes = self.xsampler.sample()  # (seq_len, num_causes)
+    def forward(self, causes=None):
+        """Generates synthetic data by sampling or accepting input features."""
+        if causes is None:
+            causes = self.xsampler.sample()  # (seq_len, num_causes)
+
+        # Generate outputs through MLP layers
+        outputs = [causes]
 
         # Generate outputs through MLP layers
         outputs = [causes]

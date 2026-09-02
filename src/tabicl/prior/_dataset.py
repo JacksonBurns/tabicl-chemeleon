@@ -49,6 +49,67 @@ warnings.filterwarnings(
     "ignore", message=".*The PyTorch API of nested tensors is in prototype stage.*", category=UserWarning
 )
 
+# chemeleon
+from pathlib import Path
+from urllib.request import urlretrieve
+import numpy as np
+import torch
+from chemprop import featurizers, nn
+from chemprop.data import BatchMolGraph
+from chemprop.models import MPNN
+from chemprop.nn import RegressionFFN
+from chemprop.featurizers import CuikmolmakerMolGraphFeaturizer
+
+featurizer = CuikmolmakerMolGraphFeaturizer()
+
+def _move_graph_to(graph, device):
+    """Move BatchCuikMolGraph fields to device."""
+    for field in ("V", "E", "edge_index", "rev_edge_index", "batch"):
+        v = getattr(graph, field, None)
+        if v is not None:
+            setattr(graph, field, v.to(device))
+    return graph
+
+class CheMeleonEmbedder:
+    def __init__(self, device: str | torch.device | None = None, smiles_database: Path | str | None = None, random_seed: int = 42):
+        self.featurizer = featurizers.SimpleMoleculeMolGraphFeaturizer()
+        agg = nn.MeanAggregation()
+        ckpt_dir = Path().home() / ".chemprop"
+        ckpt_dir.mkdir(exist_ok=True)
+        mp_path = ckpt_dir / "chemeleon_mp.pt"
+        if not mp_path.exists():
+            urlretrieve(
+                r"https://zenodo.org/records/15460715/files/chemeleon_mp.pt",
+                mp_path,
+            )
+        chemeleon_mp = torch.load(mp_path, weights_only=True)
+        mp = nn.BondMessagePassing(**chemeleon_mp["hyper_parameters"])
+        mp.load_state_dict(chemeleon_mp["state_dict"])
+        self.model = MPNN(
+            message_passing=mp,
+            agg=agg,
+            predictor=RegressionFFN(input_dim=mp.output_dim),  # not actually used
+        )
+        self.model.eval()
+        if device is not None:
+            self.model.to(device=device)
+
+        if smiles_database is None:
+            smiles_database = Path(__file__).parent.resolve() / "cleaned_pubchem_1MM.smiles"
+        with open(smiles_database, "r") as file:
+            self.smiles = np.array([line.strip for line in file.readlines()])
+
+        self.rng = np.random.default_rng(seed=random_seed)
+
+    def __call__(self, batch_size: int) -> torch.Tensor:
+        bmg = [_move_graph_to(mg, self.device) for mg in self.featurizer(self.smiles[torch.randperm(self.rng.choice(len(self.smiles), size=batch_size, replace=False))])]
+        with torch.no_grad():
+            return self.model.fingerprint(bmg)
+
+
+get_chemeleon_embeddings = CheMeleonEmbedder()
+# chemeleon
+
 
 def run_parallel(func: Callable, args: List[Any], n_jobs: int = -1) -> List[Any]:
     """
@@ -580,9 +641,19 @@ class SCMPrior(Prior):
             - y: Targets tensor of shape (seq_len,)
             - d: Number of active features after filtering (scalar Tensor)
         """
+        if params["prior_type"] == "chemeleon":
+            X = torch.as_tensor(
+                get_chemeleon_embeddings(params["seq_len"]),
+                dtype=torch.float32,
+                device=self.device,
+            )
+            prior = MLPSCM(**params, is_causal=False)
+            _, y = prior(X)
+            d = torch.tensor(2048, device=self.device, dtype=torch.long)
 
-        # print(f'{params["prior_type"]=}')
-        if params["prior_type"] == "mlp_scm":
+            return X, y, d
+
+        elif params["prior_type"] == "mlp_scm":
             prior_cls = MLPSCM
         elif params["prior_type"] == "tree_scm":
             prior_cls = TreeSCM
