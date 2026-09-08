@@ -317,9 +317,9 @@ class Trainer:
         if self.config.prior_dir is None:
             # psutil.cpu_count(logical=False) can return None on some platforms; fall back safely.
             num_workers = self.config.n_jobs
-            if num_workers <= 0:
+            if num_workers < 0:
                 num_workers = psutil.cpu_count(logical=False) or os.cpu_count() or 1
-            prefetch_factor = 2
+            prefetch_factor = 2 if num_workers > 0 else None
         else:
             num_workers = 1
             prefetch_factor = 4
@@ -334,7 +334,7 @@ class Trainer:
             pin_memory=True if self.config.prior_device == "cpu" else False,
             pin_memory_device=self.config.device if self.config.prior_device == "cpu" else "",
             worker_init_fn=seed_worker,
-            persistent_workers=True,
+            persistent_workers=False,
         )
 
     def configure_optimizer(self):

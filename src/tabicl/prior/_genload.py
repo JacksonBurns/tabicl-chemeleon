@@ -297,7 +297,7 @@ class LoadPriorDataset(IterableDataset):
             time.sleep(5)
             wait_time += 5
 
-        batch = torch.load(batch_file, map_location=self.device, weights_only=True)
+        batch = torch.load(batch_file, map_location="cpu", weights_only=True)
         X = batch["X"]
         y = batch["y"]
         d = batch["d"]
@@ -511,9 +511,7 @@ class SavePriorDataset:
             batch_size=None,  # No additional batching since PriorDataset handles batching internally
             shuffle=False,
             num_workers=self.args.n_jobs,
-            prefetch_factor=2,
             worker_init_fn=seed_worker,
-            persistent_workers=True,
         )
         self.dl_iter = iter(self.dataloader)
         print(self.prior)
@@ -673,7 +671,7 @@ if __name__ == "__main__":
         "--prior_type",
         type=str,
         default="graph_scm",
-        choices=["mlp_scm", "tree_scm", "mix_scm", "graph_scm"],
+        choices=["mlp_scm", "tree_scm", "mix_scm", "graph_scm", "chemeleon"],
         help="Type of prior to use",
     )
     PriorConfig.add_args_to_parser(parser)

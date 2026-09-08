@@ -2,11 +2,12 @@
 wget --no-clobber https://huggingface.co/jingang/TabICL/resolve/main/tabicl-classifier-v2-20260212.ckpt
 wget --no-clobber https://huggingface.co/jingang/TabICL/resolve/main/tabicl-regressor-v2-20260212.ckpt
 
-torchrun --standalone --nproc_per_node=1 -m tabicl.train \
+python -m tabicl.train \
+    --prior_dir data_chemeleon \
     --device cuda \
-    --dtype float32 \
-    --max_steps 10000 \
-    --batch_size 64 \
+    --dtype float16 \
+    --max_steps 1024 \
+    --batch_size 8 \
     --micro_batch_size 1 \
     --lr 1e-5 \
     --muon True \
@@ -20,14 +21,24 @@ torchrun --standalone --nproc_per_node=1 -m tabicl.train \
     --gradient_clipping 1.0 \
     --regression_method quantile \
     --num_quantiles 999 \
+    --norm_type layernorm_nobias \
+    --col_feature_group True \
+    --col_target_aware True \
+    --col_affine False \
+    --col_ssmax True \
+    --icl_ssmax True \
+    --ssmax_type qassmax-mlp-elementwise \
+    --col_nhead 8 \
+    --icl_nhead 8 \
+    --row_rope_interleaved False \
+    --zero_init False \
     --prior_type chemeleon \
     --prior_device cuda \
-    --n_jobs 16 \
-    --batch_size_per_gp 1 \
+    --n_jobs 0 \
     --min_features 2048 \
     --max_features 2048 \
-    --min_seq_len 400 \
-    --max_seq_len 60000 \
+    --min_seq_len 128 \
+    --max_seq_len 2048 \
     --log_seq_len True \
     --seq_len_per_gp False \
     --min_train_size 0.79 \
@@ -35,3 +46,4 @@ torchrun --standalone --nproc_per_node=1 -m tabicl.train \
     --checkpoint_path tabicl-regressor-v2-20260212.ckpt \
     --only_load_model True \
     --checkpoint_dir ./checkpoints
+    

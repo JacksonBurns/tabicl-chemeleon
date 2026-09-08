@@ -62,17 +62,9 @@ from chemprop.featurizers import CuikmolmakerMolGraphFeaturizer
 
 featurizer = CuikmolmakerMolGraphFeaturizer()
 
-def _move_graph_to(graph, device):
-    """Move BatchCuikMolGraph fields to device."""
-    for field in ("V", "E", "edge_index", "rev_edge_index", "batch"):
-        v = getattr(graph, field, None)
-        if v is not None:
-            setattr(graph, field, v.to(device))
-    return graph
-
 class CheMeleonEmbedder:
     def __init__(self, device: str | torch.device | None = None, smiles_database: Path | str | None = None, random_seed: int = 42):
-        self.featurizer = featurizers.SimpleMoleculeMolGraphFeaturizer()
+        self.featurizer = featurizers.CuikmolmakerMolGraphFeaturizer()
         agg = nn.MeanAggregation()
         ckpt_dir = Path().home() / ".chemprop"
         ckpt_dir.mkdir(exist_ok=True)
@@ -91,23 +83,25 @@ class CheMeleonEmbedder:
             predictor=RegressionFFN(input_dim=mp.output_dim),  # not actually used
         )
         self.model.eval()
-        if device is not None:
-            self.model.to(device=device)
+        self.device = device
+        if self.device is not None:
+            self.model.to(device=self.device)
 
         if smiles_database is None:
             smiles_database = Path(__file__).parent.resolve() / "cleaned_pubchem_1MM.smiles"
         with open(smiles_database, "r") as file:
-            self.smiles = np.array([line.strip for line in file.readlines()])
+            self.smiles = np.array([line.strip() for line in file.readlines()])
 
         self.rng = np.random.default_rng(seed=random_seed)
 
     def __call__(self, batch_size: int) -> torch.Tensor:
-        bmg = [_move_graph_to(mg, self.device) for mg in self.featurizer(self.smiles[self.rng.choice(len(self.smiles), size=batch_size, replace=False)])]
+        bmg = self.featurizer(self.smiles[self.rng.choice(len(self.smiles), size=batch_size, replace=False)])
+        bmg.to(self.device)
         with torch.no_grad():
             return self.model.fingerprint(bmg)
 
 
-get_chemeleon_embeddings = CheMeleonEmbedder()
+get_chemeleon_embeddings = CheMeleonEmbedder(device="cuda")
 # chemeleon
 
 
@@ -1348,9 +1342,10 @@ class ChemeleonPrior(SCMPrior):
 
         # Generate a hypothetical regression task using the existing
         # TabICL MLP-SCM machinery, with CheMeleon X as the causes.
+        if params.get("is_causal", False):
+            params["is_causal"] = False  # CheMeleon embeddings are not causal, so we disable causality for the target generation
         prior = MLPSCM(
             **params,
-            is_causal=False,
         )
 
         _, y = prior(X)

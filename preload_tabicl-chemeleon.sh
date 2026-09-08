@@ -1,0 +1,12 @@
+python -m tabicl.prior._genload \
+    --save_dir ./data_chemeleon \
+    --num_batches 128 \
+    --regression True \
+    --batch_size 8 \
+    --prior_type chemeleon \
+    --device cuda \
+    --n_jobs 0 \
+    --min_features 2048 \
+    --max_features 2048 \
+    --min_seq_len 128 \
+    --max_seq_len 2048
