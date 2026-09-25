@@ -377,6 +377,9 @@ class ColEmbedding(nn.Module):
             assert y_train is not None, "y_train must be provided when target_aware=True."
 
             # Determine if mixed-radix ensemble is needed
+
+            # patch - somtimes y_train has inf
+            y_train[~torch.isfinite(y_train)] = 0.0
             num_classes = int(y_train.max().item()) + 1
             needs_mixed_radix = self.max_classes > 0 and num_classes > self.max_classes
 

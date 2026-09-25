@@ -64,19 +64,19 @@ featurizer = CuikmolmakerMolGraphFeaturizer()
 
 class CheMeleonEmbedder:
     def __init__(self, device: str | torch.device | None = None, smiles_database: Path | str | None = None, random_seed: int = 42):
-        self.featurizer = featurizers.CuikmolmakerMolGraphFeaturizer()
-        agg = nn.MeanAggregation()
         ckpt_dir = Path().home() / ".chemprop"
         ckpt_dir.mkdir(exist_ok=True)
-        mp_path = ckpt_dir / "chemeleon_mp.pt"
+        mp_path = ckpt_dir / "minichemeleon_mp.pt"
         if not mp_path.exists():
-            urlretrieve(
-                r"https://zenodo.org/records/15460715/files/chemeleon_mp.pt",
-                mp_path,
-            )
+            raise RuntimeError("Model dev checkpoint not found.")
+        # ### MiniCheMeleon ###
+        self.featurizer = featurizers.CuikmolmakerMolGraphFeaturizer(atom_featurizer_mode="RIGR")
+        agg = nn.NormAggregation()
         chemeleon_mp = torch.load(mp_path, weights_only=True)
-        mp = nn.BondMessagePassing(**chemeleon_mp["hyper_parameters"])
+        chemeleon_mp["hyper_params"]["activation"] = torch.nn.GELU()
+        mp = nn.BondMessagePassing(**chemeleon_mp["hyper_params"])
         mp.load_state_dict(chemeleon_mp["state_dict"])
+        # ### ###
         self.model = MPNN(
             message_passing=mp,
             agg=agg,
@@ -98,7 +98,10 @@ class CheMeleonEmbedder:
         bmg = self.featurizer(self.smiles[self.rng.choice(len(self.smiles), size=batch_size, replace=False)])
         bmg.to(self.device)
         with torch.no_grad():
-            return self.model.fingerprint(bmg)
+            emb = self.model.fingerprint(bmg)
+            # replace nan, inf, -inf with 0
+            emb[~torch.isfinite(emb)] = 0.0
+            return emb
 
 
 get_chemeleon_embeddings = CheMeleonEmbedder(device="cuda")
@@ -643,7 +646,7 @@ class SCMPrior(Prior):
             )
             prior = MLPSCM(**params, is_causal=False)
             _, y = prior(X)
-            d = torch.tensor(2048, device=self.device, dtype=torch.long)
+            d = torch.tensor(128, device=self.device, dtype=torch.long)
 
             return X, y, d
 
@@ -1334,10 +1337,10 @@ class ChemeleonPrior(SCMPrior):
             device=self.device,
         )
 
-        if X.shape != (seq_len, 2048):
+        if X.shape != (seq_len, 128):
             raise ValueError(
                 f"Expected CheMeleon embeddings of shape "
-                f"({seq_len}, 2048), got {tuple(X.shape)}"
+                f"({seq_len}, 128), got {tuple(X.shape)}"
             )
 
         # Generate a hypothetical regression task using the existing
@@ -1350,8 +1353,22 @@ class ChemeleonPrior(SCMPrior):
 
         _, y = prior(X)
 
+        # --- Standardize and clamp y for float16 numerical stability ---
+        y = torch.nan_to_num(y, nan=0.0, posinf=10.0, neginf=-10.0)
+        y_mean = y.mean()
+        y_std = y.std()
+
+        if y_std > 1e-6:
+            y = (y - y_mean) / y_std
+        else:
+            y = y - y_mean
+
+        # Clamp extreme tails so residuals cannot overflow fp16
+        y = torch.clamp(y, -4.0, 4.0)
+        # -------------------------------------------------------------------
+
         d = torch.tensor(
-            2048,
+            128,
             dtype=torch.long,
             device=self.device,
         )

@@ -2,11 +2,12 @@
 wget --no-clobber https://huggingface.co/jingang/TabICL/resolve/main/tabicl-classifier-v2-20260212.ckpt
 wget --no-clobber https://huggingface.co/jingang/TabICL/resolve/main/tabicl-regressor-v2-20260212.ckpt
 
+# TODO: train from scratch with this same setup? can maybe turn off the column variability approximations?
 python -m tabicl.train \
-    --prior_dir data_chemeleon \
+    --prior_dir /media/jackson/pciedisk/MiniCheMeleon/MiniCheMeleon-TabICL/cached_minichemeleon_embeddings \
     --device cuda \
     --dtype float16 \
-    --max_steps 1024 \
+    --max_steps 150 \
     --batch_size 8 \
     --micro_batch_size 1 \
     --lr 1e-5 \
@@ -32,18 +33,6 @@ python -m tabicl.train \
     --icl_nhead 8 \
     --row_rope_interleaved False \
     --zero_init False \
-    --prior_type chemeleon \
-    --prior_device cuda \
-    --n_jobs 0 \
-    --min_features 2048 \
-    --max_features 2048 \
-    --min_seq_len 128 \
-    --max_seq_len 2048 \
-    --log_seq_len True \
-    --seq_len_per_gp False \
-    --min_train_size 0.79 \
-    --max_train_size 0.81 \
     --checkpoint_path tabicl-regressor-v2-20260212.ckpt \
     --only_load_model True \
-    --checkpoint_dir ./checkpoints
-    
+    --checkpoint_dir /media/jackson/pciedisk/MiniCheMeleon/MiniCheMeleon-TabICL/incremental_pretrain_checkpoints

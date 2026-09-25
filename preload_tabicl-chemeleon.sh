@@ -1,12 +1,17 @@
 python -m tabicl.prior._genload \
-    --save_dir ./data_chemeleon \
+    --save_dir /media/jackson/pciedisk/MiniCheMeleon/MiniCheMeleon-TabICL/cached_minichemeleon_embeddings \
     --num_batches 128 \
     --regression True \
     --batch_size 8 \
+    --batch_size_per_gp 1 \
     --prior_type chemeleon \
     --device cuda \
     --n_jobs 0 \
-    --min_features 2048 \
-    --max_features 2048 \
+    --min_features 128 \
+    --max_features 128 \
     --min_seq_len 128 \
-    --max_seq_len 2048
+    --max_seq_len 4096 \
+    --log_seq_len True \
+    --seq_len_per_gp False \
+    --min_train_size 0.79 \
+    --max_train_size 0.81
