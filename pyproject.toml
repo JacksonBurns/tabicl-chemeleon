@@ -65,11 +65,11 @@ shap = [
 pretrain = [
     "transformers",  # only used in optim for schedules
     "xgboost",  # used in the TabICLv1 prior
-    "tensorboard",  # logging in pre-training
+    "wandb",  # logging in pre-training
 ]
 finetune = [
     "transformers",  # get_scheduler reuses the pretraining cosine-warmup schedules
-    "tensorboard",  # optional, only engaged when tensorboard_kwargs is passed
+    "wandb",  # optional, only engaged when wandb_kwargs is passed
 ]
 test = [
     "pandas",
